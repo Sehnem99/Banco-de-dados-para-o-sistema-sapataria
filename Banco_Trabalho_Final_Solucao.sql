@@ -294,7 +294,7 @@ Esse  resultado  deve  ser  exibido  em  %  e  deverá  ser  obtido através  de
 A  exibição  final  será  Estado,  Cidade,  Quantidade  de Clientes, % de participação no total de clientes.
 (a leitura dessa informação será: A cidade de xxxxxxxx tem x% de participação no total de clientes cadastrados)*/
 SELECT D.NOME_ESTADO,C.NOME_CIDADE,COUNT(A.ID_CLIENTE) AS QTDE_CLIENTE,
-ROUND(COUNT(A.ID_CLIENTE) * 100 / (SELECT COUNT(*) FROM ENDERECO_CLIENTE),2) AS PORCENTAGEM
+ROUND((SELECT COUNT(*) FROM ENDERECO_CLIENTE) * 100 / COUNT(A.ID_CLIENTE),2) AS PORCENTAGEM
  FROM ENDERECO_CLIENTE A
 INNER JOIN ENDERECO B
 	ON A.ID_ENDERECO = B.ID_ENDERECO
@@ -345,7 +345,7 @@ from funcionario_cliente as a, cliente as b, contrato as c
         
  /*9)Qual foi o valor vendido por mês nos últimos 12 meses. Exempo de saída 01/2015 -120.000;  */
 
-select MONTH(DATA_ASSINATURA),YEAR(DATA_ASSINATURA), (a.VALOR_CONTRATO) from contrato as a
+select MONTH(DATA_ASSINATURA),YEAR(DATA_ASSINATURA), sum(a.VALOR_CONTRATO) from contrato as a
 where a.DATA_ASSINATURA > month(-12)
 group by MONTH(DATA_ASSINATURA),YEAR(DATA_ASSINATURA);	
 
@@ -361,23 +361,20 @@ order by Ano;
 valor  recebido  e valor devido dos clientes que possuem parcelas não pagas (pago=0);*/
 
 Select C.ID_PARCELAS,a.NOME_FANTASIA, b.NUMERO_CONTRATO, b.VALOR_CONTRATO, 
-(select sum(a.VALOR_PARCELA) from parcelas as a, cliente as b, contrato as c
-	where A.ID_CONTRATO = c.ID_CONTRATO 
-    and b.ID_CLIENTE = c.ID_CLIENTE
-    and a.pago = 1) as Valor_recebido,
-sum((select sum(a.VALOR_PARCELA) from parcelas as a, cliente as b, contrato as c
-	where A.ID_CONTRATO = c.ID_CONTRATO 
-    and b.ID_CLIENTE = c.ID_CLIENTE
-    and a.pago = 1) 
-    - 
-    (select sum(a.VALOR_PARCELA) from parcelas as a, cliente as b, contrato as c
-	where A.ID_CONTRATO = c.ID_CONTRATO 
-    and b.ID_CLIENTE = c.ID_CLIENTE
-    and a.pago = 0)) as Valor_Devido
+
+(Select sum(VALOR_PARCELA) from parcelas where ID_CONTRATO = b.ID_CONTRATO 
+		and pago = 1) as Valor_recebido,
+
+(b.VALOR_CONTRATO - IF((Select sum(VALOR_PARCELA) from parcelas where ID_CONTRATO = b.ID_CONTRATO 
+		and pago = 1)is null,0,(Select sum(VALOR_PARCELA) from parcelas where ID_CONTRATO = b.ID_CONTRATO 
+		and pago = 1))) as Valor_devido,
+    
+c.ID_CONTRATO
 from cliente as a, contrato as b, parcelas as c
 where a.ID_CLIENTE = b.ID_CLIENTE
 	and b.ID_CONTRATO = c.ID_CONTRATO
-group by ID_PARCELAS;	
+    and c.PAGO = 0
+group by ID_CONTRATO;
 
 /*12) Apresentar o percentual de clientes inadimplentes por cidade. O percentual deve
 ser aplicado sobre a quantidade de clientes da própria cidade. É considerado
@@ -394,8 +391,9 @@ SELECT  b.NOME_CIDADE, ROUND(COUNT(A.ID_CLIENTE) * 100 / (SELECT COUNT(*) FROM c
 GROUP BY NOME_CIDADE
 order by Qtd_Cliente;
 
-
-
+/*13) Apresentar o percentual de clientes, por mês, que pagam em dia suas parcelas.
+Pagamentos “em dia” são considerados os pagamentos realizados até a data do
+vencimento. Somente devem ser considerados as parcelas já pagas.*/
 
 
 
