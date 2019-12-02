@@ -161,7 +161,7 @@ INSERT INTO endereco_cliente (ID_ENDERECO,ID_CLIENTE)
 select ID_ENDERECO,ID_CLIENTE from endereco where id_endereco = id_cliente;
 	
                        /*Fase 02–Desenvolva as seguintes operações na banco de dados:*/
-SET FOREIGN_KEY_CHECKS=1;
+
 /*Montar script para as seguintes operações:
  Inclusão (verificar tabelas periféricas)
 o Incluir 3 novos clientes;*/
@@ -213,7 +213,7 @@ values
 (72269,'Funcionario 72269','2019-12-02',6836,'9.185.139','2000-10-09',NULL,'AUXILIAR DE SEGUROS'),
 (72270,'Funcionario 72270','2019-12-02',6836,'1.893.349','1965-11-16',NULL,'DIRETOR');
 
-
+SET FOREIGN_KEY_CHECKS=1;
 /*Atualizaçõeso
 A família “Bala” teve seu nome escrito errado em todos os registros onde aparece
 como   responsável pelo cliente.Você   deve   atualizar   o sobrenome dos resposáveis para “Bombom”.
@@ -293,15 +293,12 @@ order by Qtd_Cliente ;
 Esse  resultado  deve  ser  exibido  em  %  e  deverá  ser  obtido através  de  uma  regra  de  3.
 A  exibição  final  será  Estado,  Cidade,  Quantidade  de Clientes, % de participação no total de clientes.
 (a leitura dessa informação será: A cidade de xxxxxxxx tem x% de participação no total de clientes cadastrados)*/
-SELECT D.NOME_ESTADO,C.NOME_CIDADE,COUNT(A.ID_CLIENTE) AS QTDE_CLIENTE,
-ROUND((SELECT COUNT(*) FROM ENDERECO_CLIENTE) * 100 / COUNT(A.ID_CLIENTE),2) AS PORCENTAGEM
- FROM ENDERECO_CLIENTE A
-INNER JOIN ENDERECO B
-	ON A.ID_ENDERECO = B.ID_ENDERECO
-INNER JOIN CIDADE C
-	ON B.ID_CIDADE = C.ID_CIDADE
-INNER JOIN ESTADO D
-	ON C.ID_ESTADO = D.ID_ESTADO
+SELECT D.NOME_ESTADO,C.NOME_CIDADE,COUNT(a.ID_CLIENTE) AS QTDE_CLIENTE,
+CONCAT('A porcentagem é de ',ROUND(COUNT(a.ID_CLIENTE) * 100 / (SELECT COUNT(*) FROM ENDERECO_CLIENTE),2),'%') AS PORCENTAGEM
+ FROM ENDERECO_CLIENTE A, ENDERECO B, CIDADE C,ESTADO D
+	where A.ID_ENDERECO = B.ID_ENDERECO
+	  and B.ID_CIDADE = C.ID_CIDADE
+	  and C.ID_ESTADO = D.ID_ESTADO
 GROUP BY C.ID_CIDADE
 HAVING QTDE_CLIENTE > 10
 ORDER BY QTDE_CLIENTE;
@@ -328,7 +325,7 @@ where ID_PARCELAS in
 (select b.ID_PARCELAS
  from contrato as a, parcelas as b
 		where a.ID_CONTRATO = b.ID_CONTRATO
-			and b.VENCIMENTO_PARCELA BETWEEN '2016-02-01' AND '2016-02-28');
+			and b.VENCIMENTO_PARCELA BETWEEN '2016-02-01' AND '2016-02-29');
             
             
 /*8)Monte  uma  consulta  por  aproximação  que  usará  como  chave  principal  o  nome  do funcionário
@@ -345,17 +342,17 @@ from funcionario_cliente as a, cliente as b, contrato as c
         
  /*9)Qual foi o valor vendido por mês nos últimos 12 meses. Exempo de saída 01/2015 -120.000;  */
 
-select MONTH(DATA_ASSINATURA),YEAR(DATA_ASSINATURA), sum(a.VALOR_CONTRATO) from contrato as a
-where a.DATA_ASSINATURA > month(-12)
-group by MONTH(DATA_ASSINATURA),YEAR(DATA_ASSINATURA);	
-
-
+SELECT CONCAT(MONTH(DATA_ASSINATURA),'/',YEAR(DATA_ASSINATURA)) AS MES,SUM(VALOR_CONTRATO) AS VALOR_TOTAL 
+	FROM CONTRATO
+	  WHERE DATA_ASSINATURA BETWEEN DATE_SUB((SELECT MAX(DATA_ASSINATURA) FROM CONTRATO),INTERVAL 12 MONTH) 
+	  AND (SELECT MAX(DATA_ASSINATURA) FROM CONTRATO)
+GROUP BY EXTRACT(YEAR_MONTH FROM DATA_ASSINATURA);
 
 /*10)Qual o valor de parcelas em atraso por mês de vencimento;*/
-select year(a.VENCIMENTO_PARCELA) AS Ano,month(a.VENCIMENTO_PARCELA) as Mes, sum(VALOR_PARCELA) as Valor_Parcela
+SELECT CONCAT(MONTH(VENCIMENTO_PARCELA),'/',YEAR(VENCIMENTO_PARCELA)),SUM(VALOR_PARCELA) 
 from parcelas as a 
-group by MONTH(VENCIMENTO_PARCELA)
-order by Ano;
+where a.pago = 0
+group by EXTRACT(YEAR_MONTH FROM VENCIMENTO_PARCELA);
 
 /*11)Listar  o  nome  fantasia, número  do  contrato,  valor  do  contrato,
 valor  recebido  e valor devido dos clientes que possuem parcelas não pagas (pago=0);*/
@@ -395,9 +392,108 @@ order by Qtd_Cliente;
 Pagamentos “em dia” são considerados os pagamentos realizados até a data do
 vencimento. Somente devem ser considerados as parcelas já pagas.*/
 
+SELECT CONCAT ('O percentual do mês ', CONCAT(MONTH(DATA_ASSINATURA),'/',YEAR(DATA_ASSINATURA)),' é de ',
+ROUND(COUNT(A.ID_CLIENTE) * 100 / (SELECT COUNT(*) FROM CONTRATO WHERE B.PAGAMENTO_PARCELA <= B.VENCIMENTO_PARCELA),2),'%') AS RESULTADO
+from CONTRATO A , PARCELAS B, CLIENTE C
+	where A.ID_CONTRATO = B.ID_CONTRATO
+		and A.ID_CLIENTE = C.ID_CLIENTE
+        and b.pago = 1
+		and PAGAMENTO_PARCELA <= VENCIMENTO_PARCELA
+GROUP BY EXTRACT(YEAR_MONTH FROM DATA_ASSINATURA);
+
+/*
+14)  Caso fosse cobrada uma multa de 2% sobre o valor da parcela, mais R$ 0,05 centavo por dia de atraso. 
+Qual seria o valor adicional faturado por mês. 
+Considerar somente as parcela pagas. */
 
 
-  
+/*
+15) Qual o valor vendido por tipo de serviço oferecido. Saída deverá conter Nome do Serviço, Valor total vendido.
+*/
+SELECT C.TITULO_SERVICOS,SUM(B.VALOR_CONTRATO) 
+	from CONTRATO_SERVICOS A, CONTRATO B, SERVICOS C
+	where A.ID_CONTRATO = B.ID_CONTRATO
+		and A.ID_SERVICOS = C.ID_SERVICOS
+GROUP BY A.ID_SERVICOS;
+		
+/*                                                                                                                                     
+16)  Listar os 10 clientes que tenham gerado o maior faturamento (considerar a soma dos contratos). 
+Saída de dados, Nome do Cliente, Nome da Categoria, Quantidade de Contratos, Valor Total, 
+Valor médio dos contratos, Total de funcionários atendidos (considerar tabela funcionário_cliente)
+*/
+SELECT  B.NOME_FANTASIA,
+COUNT(A.ID_CLIENTE) AS QTDE_CONTRATOS,
+SUM(A.VALOR_CONTRATO) AS VALOR_TOTAL,
+ROUND(SUM(A.VALOR_CONTRATO) / COUNT(A.ID_CLIENTE),2) AS MEDIA_CONTRATO,
+(SELECT COUNT(*) FROM FUNCIONARIO_CLIENTE WHERE A.ID_CLIENTE = ID_CLIENTE) AS FUNCIONARIOS_ATENDIDOS
+FROM CONTRATO A,CLIENTE B 
+	where A.ID_CLIENTE = B.ID_CLIENTE
+GROUP BY A.ID_CLIENTE ORDER BY A.ID_CLIENTE limit 10;
+
+/*
+17)  Para promover uma ação comercial somente para os clientes considerados bons pagadores a áreas 
+comercial precisa de uma listagem com o nome do cliente e nome do responsável dos clientes que 
+estão com as parcelas pagas ou que estão com parcelas atrasadas a no máximo 20 dias. 
+*/
+SELECT C.NOME_FANTASIA,A.NOME_PESSOA 
+FROM PESSOA A,PESSOA_CLIENTE B,CLIENTE C,CONTRATO D,PARCELAS E
+	where A.ID_PESSOA = B.ID_PESSOA
+	  and B.ID_CLIENTE = C.ID_CLIENTE
+      and C.ID_CLIENTE = D.ID_CLIENTE
+	  and D.ID_CONTRATO = E.ID_CONTRATO
+      and E.PAGO = 1 
+      and VENCIMENTO_PARCELA <= DATE_SUB(VENCIMENTO_PARCELA,INTERVAL 20 DAY)
+GROUP BY B.ID_CLIENTE,B.ID_PESSOA;
+/*
+18)  Listar todos os contratos de um cliente caso exista ao menos um contrato com uma parcela em aberto: 
+Nome Cliente, CNPJ do Cliente Numero do Contrato, Valor Contrato */
+ 
+SELECT B.NOME_FANTASIA,B.CNPJ_CLIENTE,A.NUMERO_CONTRATO,A.VALOR_CONTRATO 
+	FROM CONTRATO A, CLIENTE B, PARCELAS C
+		where A.ID_CLIENTE = B.ID_CLIENTE 
+		  and A.ID_CONTRATO = C.ID_CONTRATO
+          and c.PAGO = 0
+		  and c.PAGAMENTO_PARCELA IS NULL
+GROUP BY A.ID_CONTRATO;
+ 
+/*
+19) Listar todos os contratos de um cliente caso todas as percelas de todos os contratos estejam quitadas: 
+Nome Cliente, CNPJ do Cliente Numero do Contrato, Valor Contrato; */
+
+SELECT B.NOME_FANTASIA,B.CNPJ_CLIENTE,A.NUMERO_CONTRATO,A.VALOR_CONTRATO 
+FROM CONTRATO A, CLIENTE B, PARCELAS C
+	where A.ID_CLIENTE = B.ID_CLIENTE 
+      and A.ID_CONTRATO = C.ID_CONTRATO
+      and C.PAGO = '1' 
+GROUP BY A.ID_CONTRATO;
+
+/* 20) Será necessário realizar uma atualização cadastral dos dados dos clientes, 
+você deve listar todos os clientes que não possuam ao menos um contota cadastrado: Nome Cliente, CNPJ. */
+SELECT * FROM CLIENTE A
+LEFT JOIN CONTATO B
+	ON A.ID_CLIENTE = B.ID_CLIENTE
+WHERE B.ID_CLIENTE IS NULL;
+ -- Não achei outro jeito para fazer
+/* 
+21) Desenvolva dois scripts com base em necessidades identificadas por você. (apresentar a necessidade e o script). 
+*/
+
+
+/*Fase 04 – Desenvolva as seguintes solicitações:
+Item 01 – Crie um procedimento para apresentar a expetactiva de receita. O usuário
+deverá passar uma data inicial e uma data final o procedimento deverá apresentar os
+valores a serem recebidos no período com base na tabela de parcelas. Valor já pagos não
+devem ser considerados.*/
+
+/*Item 02 – Crie uma função que retorna a diferença entre duas datas. O resultado de saída
+deve ser apresentado em anos. Somente o valor inteiro deverá ser retornado.*/
+
+
+/*Item 03 – Na operação de inserção de dados na tabela funcionario_cliente, não deve ser
+permitida a inclusão de funcionários menores de 16 anos./*
+
+
+
 /*TESTES*/	
 
 
